@@ -21,5 +21,7 @@ func main() {
 
 // https://www.fermyon.com/blog/optimizing-tinygo-wasm
 // env GOOS=js GOARCH=wasm go build -o water.wasm
+// compress with .... 
+//
 // env GOOS=js GOARCH=wasm tinygo build -o water.wasm
 // wasm-opt -O water.wasm -o small_water.wasm
