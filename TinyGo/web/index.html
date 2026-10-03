@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Water Demo</title>
+
+    <script src="wasm_exec.js"></script>
+</head>
+
+<body>
+    <img id="sky" src="assets/sky.webp" style="display: none;" alt="sky">
+    <img id="rock" src="assets/rock.png" style="display: none;" alt="rock">
+    <img id="ground" src="assets/ground.png" style="display: none;" alt="ground">
+    <img id="particle" src="assets/particle.png" style="display: none;" alt="particle">
+
+    <canvas id="gameCanvas" width="800" height="480" style="border: 1px solid black; background: #eee;"></canvas>
+
+    <script>
+        const go = new Go();
+        WebAssembly.instantiateStreaming(fetch("../main.wasm"), go.importObject)
+            .then((result) => {
+                go.run(result.instance);
+            })
+            .catch((err) => {
+                console.error("Failed to load WASM binary:", err);
+            });
+    </script>
+</body>
+
+</html>
