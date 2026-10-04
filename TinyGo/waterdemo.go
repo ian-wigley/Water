@@ -1,7 +1,7 @@
 package main
 
 import (
-	// "log"
+//	"log"
 	"slices"
 	"syscall/js"
 	"time"
@@ -50,7 +50,7 @@ func InitS() {
 	water.Create()
 
 	// Wait for image assets to load into DOM before beginning game tick
-	for !g.rock.Get("complete").Bool() {
+	for !g.sky.Get("complete").Bool() {
 		time.Sleep(10 * time.Millisecond)
 	}
 
@@ -80,39 +80,51 @@ func InitS() {
 		return nil
 	})
 
-	// // Start the main loop using browser's requestAnimationFrame
-	// var runLoop js.Func
-	// runLoop = js.FuncOf(func(this js.Value, args []js.Value) any {
-	// 	g.Update()
-	// 	g.Draw()
-	// 	// Queue up the next frame execution
-	// 	js.Global().Call("requestAnimationFrame", runLoop)
-	// 	return nil
-	// })
-
 	defer runLoop.Release()
-	// Kick off the loop
 	js.Global().Call("requestAnimationFrame", runLoop)
-	// Block main routine so the background JS animations stay active
 	select {}
 }
 
-// Input registration mapping keyboard events to the game map state
 func (g *Game) setupInput() {
 	doc := js.Global().Get("document")
+
 	keyDown := js.FuncOf(func(this js.Value, args []js.Value) any {
 		event := args[0]
+		code := event.Get("code").String()
 		event.Call("preventDefault")
-		code := event.Get("code").String() // e.g., "KeyW", "ArrowLeft"
+		// Ignore repeated browser keydown events.
+		if event.Get("repeat").Bool() {
+			return nil
+		}
+
+		// Record that the key is held.
 		g.keys[code] = true
+
+		// Handle actions that should happen only once per press.
+		switch code {
+
+		// // 	mousePosX, _ = ebiten.CursorPosition()
+		// // 	dropRock := inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft)
+		case "KeyA":
+			if g.playerX > 40 && g.playerX < screenWidth-80 {
+				// 	if dropRock && mousePosX > 40 && mousePosX < screenWidth - 80 {
+				// log.Print("Dropping a rock !")
+				newRock := new(Rock)
+				newRock.Construct(Vector2{float64(g.playerX), 100}, Vector2{0, 0})
+				newRock.Update(water)
+				rocks = append(rocks, *newRock)
+			}
+		}
+
 		return nil
 	})
 
 	keyUp := js.FuncOf(func(this js.Value, args []js.Value) any {
 		event := args[0]
-		event.Call("preventDefault")
 		code := event.Get("code").String()
+		event.Call("preventDefault")
 		g.keys[code] = false
+
 		return nil
 	})
 
@@ -120,34 +132,20 @@ func (g *Game) setupInput() {
 	doc.Call("addEventListener", "keyup", keyUp)
 }
 
-// Update replaces your ebiten Update() loop
 func (g *Game) Update(time float64) {
+	//log.Print("time %f", time)
 	moveSpeed := 4.0
-	if g.keys["ArrowLeft"] { //|| g.keys["KeyA"] {
-		g.playerX -= moveSpeed
+	if g.keys["ArrowLeft"] {
+		if g.playerX > 0 {
+			g.playerX -= moveSpeed
+		}
 	}
-	if g.keys["ArrowRight"] || g.keys["KeyD"] {
-		g.playerX += moveSpeed
-	}
-	if g.keys["ArrowUp"] || g.keys["KeyW"] {
-		g.playerY -= moveSpeed
-	}
-	if g.keys["ArrowDown"] || g.keys["KeyS"] {
-		g.playerY += moveSpeed
+	if g.keys["ArrowRight"] {
+		if g.playerX < 760 {
+			g.playerX += moveSpeed
+		}
 	}
 
-	// 	mousePosX, _ = ebiten.CursorPosition()
-	// 	dropRock := inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft)
-	if g.keys["KeyA"] && g.playerX > 40 && g.playerX < screenWidth-80 {
-		// 	if dropRock && mousePosX > 40 && mousePosX < screenWidth - 80 {
-		// log.Print("Dropping a rock !")
-		newRock := new(Rock)
-		newRock.Construct(Vector2{float64(g.playerX), 100}, Vector2{0, 0})
-		//newRock.Construct(Vector2{100, 100}, Vector2{0, 0})
-		newRock.Update(water)
-		rocks = append(rocks, *newRock)
-
-	}
 	var indices []int
 	for i, rock := range rocks {
 		if rock.position.y < waterSurface && rock.position.y+rock.velocity.y >= waterSurface {
@@ -161,28 +159,20 @@ func (g *Game) Update(time float64) {
 			indices = append(indices, i)
 		}
 	}
-
 	water.Update()
-
 	for i := len(indices) - 1; i >= 0; i-- {
 		rocks = slices.Delete(rocks, indices[i], indices[i]+1)
 	}
-
 }
 
-// Draw replaces your ebiten Draw() loop
 func (g *Game) Draw() {
-	// 1. Clear the canvas frame (Equivalent to Ebitengine auto-clearing the screen)
 	g.ctx.Call("clearRect", 0, 0, 800, 600)
-	// 2. Draw the background or geometric primitives (Optional)
 	// g.ctx.Set("fillStyle", "#222222")
 	// g.ctx.Call("fillRect", 0, 0, 800, 600)
 
-	// 3. Draw image asset (Equivalent to screen.DrawImage)
-	// Arguments: imageElement, destinationX, destinationY
 	g.ctx.Call("drawImage", g.sky, 0, 0)
-
 	g.ctx.Call("drawImage", g.rock, g.playerX, g.playerY)
+
 	for _, rocket := range rocks {
 		rocket.Draw(g)
 	}
