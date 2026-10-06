@@ -10,8 +10,8 @@ func main() {
 // compress with ....
 //
 
-// tinygo build -o main.wasm -target=wasm .
+// tinygo build -o ./web/main.wasm -target=wasm .
 
-// tinygo build -target=wasm -opt=z -no-debug -o main.wasm .
-// wasm-opt -Oz main.wasm -o main.opt.wasm
-// brotli -9 main.opt.wasm
+// tinygo build -target=wasm -opt=z -no-debug -o ./web/main.wasm .
+// wasm-opt -Oz ./web/main.wasm -o ./web/main.opt.wasm
+// brotli -9 ./web/main.opt.wasm
