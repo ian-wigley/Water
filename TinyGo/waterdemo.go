@@ -1,7 +1,7 @@
 package main
 
 import (
-	//	"log"
+	// "log"
 	"slices"
 	"syscall/js"
 	"time"
@@ -21,13 +21,11 @@ const (
 )
 
 type Game struct {
-	ctx          js.Value // HTML5 2D Canvas Context
+	ctx          js.Value
 	sky          js.Value
-	rock         js.Value // HTML <img> Element
+	rock         js.Value
 	ground       js.Value
 	particle     js.Value
-	playerX      float64
-	playerY      float64
 	mouseX       float64
 	mouseY       float64
 	keys         map[string]bool
@@ -38,14 +36,15 @@ func Initialise() {
 	doc := js.Global().Get("document")
 	canvas := doc.Call("getElementById", "gameCanvas")
 	g := &Game{
-		ctx:      canvas.Call("getContext", "2d"),
-		sky:      doc.Call("getElementById", "sky"),
-		rock:     doc.Call("getElementById", "rock"),
-		ground:   doc.Call("getElementById", "ground"),
-		particle: doc.Call("getElementById", "particle"),
-		playerX:  100,
-		playerY:  100,
-		keys:     make(map[string]bool),
+		ctx:          canvas.Call("getContext", "2d"),
+		sky:          doc.Call("getElementById", "sky"),
+		rock:         doc.Call("getElementById", "rock"),
+		ground:       doc.Call("getElementById", "ground"),
+		particle:     doc.Call("getElementById", "particle"),
+		mouseX:      100,
+		mouseY:      100,
+		keys:         make(map[string]bool),
+		mouseButtons: make(map[string]bool),
 	}
 
 	water = new(Water)
@@ -57,7 +56,7 @@ func Initialise() {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	g.SetInput()
+	g.SetupMouse()
 
 	var runLoop js.Func
 	var lastTime float64
@@ -87,21 +86,9 @@ func Initialise() {
 	select {}
 }
 
-func (g *Game) SetInput() {
-
+func (g *Game) SetupMouse() {
 	doc := js.Global().Get("document")
-    win := js.Global()
-
-    // Track cursor position.
-    mouseMove := js.FuncOf(func(this js.Value, args []js.Value) any {
-        event := args[0]
-
-        g.mouseX = event.Get("clientX").Float()
-        g.mouseY = event.Get("clientY").Float()
-
-        return nil
-    })
-
+	win := js.Global()
 
 	mouseDown := js.FuncOf(func(this js.Value, args []js.Value) any {
 		event := args[0]
@@ -111,15 +98,10 @@ func (g *Game) SetInput() {
 
 		switch button {
 		case 0:
-			// Left mouse button: fire once per press.
 			g.mouseButtons["left"] = true
-			// g.fire()
-
 			if g.mouseX > 40 && g.mouseX < screenWidth-80 {
-				// 	if dropRock && mousePosX > 40 && mousePosX < screenWidth - 80 {
-				// log.Print("Dropping a rock !")
 				newRock := new(Rock)
-				newRock.Construct(Vector2{float64(g.playerX), 100}, Vector2{0, 0})
+				newRock.Construct(Vector2{float64(g.mouseX), 100}, Vector2{0, 0})
 				newRock.Update(water)
 				rocks = append(rocks, *newRock)
 			}
@@ -128,83 +110,50 @@ func (g *Game) SetInput() {
 		return nil
 	})
 
-
-	    // Mouse button released.
-    mouseUp := js.FuncOf(func(this js.Value, args []js.Value) any {
-        event := args[0]
-        button := event.Get("button").Int()
-
-        switch button {
-        case 0:
-            g.mouseButtons["left"] = false
-        case 1:
-            g.mouseButtons["middle"] = false
-        case 2:
-            g.mouseButtons["right"] = false
-        }
-
-        return nil
-    })
-
-
-	// doc := js.Global().Get("document")
-
-	keyDown := js.FuncOf(func(this js.Value, args []js.Value) any {
+	// Mouse button released.
+	mouseUp := js.FuncOf(func(this js.Value, args []js.Value) any {
 		event := args[0]
-		code := event.Get("code").String()
-		event.Call("preventDefault")
-		if event.Get("repeat").Bool() {
-			return nil
-		}
-		g.keys[code] = true
-		switch code {
-		// // 	mousePosX, _ = ebiten.CursorPosition()
-		// // 	dropRock := inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft)
-		case "KeyA":
-			if g.playerX > 40 && g.playerX < screenWidth-80 {
-				// 	if dropRock && mousePosX > 40 && mousePosX < screenWidth - 80 {
-				// log.Print("Dropping a rock !")
-				newRock := new(Rock)
-				newRock.Construct(Vector2{float64(g.playerX), 100}, Vector2{0, 0})
-				newRock.Update(water)
-				rocks = append(rocks, *newRock)
-			}
+		button := event.Get("button").Int()
+
+		switch button {
+		case 0:
+			g.mouseButtons["left"] = false
 		}
 
 		return nil
 	})
 
-	keyUp := js.FuncOf(func(this js.Value, args []js.Value) any {
+	// Track cursor position.
+	mouseMove := js.FuncOf(func(this js.Value, args []js.Value) any {
 		event := args[0]
-		code := event.Get("code").String()
-		event.Call("preventDefault")
-		g.keys[code] = false
 
+		g.mouseX = event.Get("clientX").Float()
+		// g.playerX = g.mouseX
 		return nil
 	})
 
-	doc.Call("addEventListener", "keydown", keyDown)
-	doc.Call("addEventListener", "keyup", keyUp)
+	// Prevent the right-click context menu.
+	contextMenu := js.FuncOf(func(this js.Value, args []js.Value) any {
+		args[0].Call("preventDefault")
+		return nil
+	})
 
+	// Clear held buttons if the browser loses focus.
+	blur := js.FuncOf(func(this js.Value, args []js.Value) any {
+		for button := range g.mouseButtons {
+			g.mouseButtons[button] = false
+		}
+		return nil
+	})
+
+	doc.Call("addEventListener", "mousedown", mouseDown)
 	win.Call("addEventListener", "mouseup", mouseUp)
 	doc.Call("addEventListener", "mousemove", mouseMove)
-	doc.Call("addEventListener", "mousedown", mouseDown)
+	doc.Call("addEventListener", "contextmenu", contextMenu)
+	win.Call("addEventListener", "blur", blur)
 }
 
 func (g *Game) Update(time float64) {
-	//log.Print("time %f", time)
-	moveSpeed := 4.0
-	if g.keys["ArrowLeft"] {
-		if g.playerX > 0 {
-			g.playerX -= moveSpeed
-		}
-	}
-	if g.keys["ArrowRight"] {
-		if g.playerX < 760 {
-			g.playerX += moveSpeed
-		}
-	}
-
 	var indices []int
 	for i, rock := range rocks {
 		if rock.position.y < waterSurface && rock.position.y+rock.velocity.y >= waterSurface {
@@ -226,25 +175,13 @@ func (g *Game) Update(time float64) {
 
 func (g *Game) Draw() {
 	g.ctx.Call("clearRect", 0, 0, 800, 600)
-	// g.ctx.Set("fillStyle", "#222222")
-	// g.ctx.Call("fillRect", 0, 0, 800, 600)
-
 	g.ctx.Call("drawImage", g.sky, 0, 0)
-	g.ctx.Call("drawImage", g.rock, g.playerX, g.playerY)
+	g.ctx.Call("drawImage", g.rock, g.mouseX, g.mouseY)
 
 	for _, rocket := range rocks {
 		rocket.Draw(g)
 	}
 	water.Draw(g)
-
-	// Note: If you used GeomM for scaling or rotation in Ebitengine, you must use
-	// canvas transformations here:
-	// g.ctx.Call("save")
-	// g.ctx.Call("translate", g.playerX, g.playerY)
-	// g.ctx.Call("rotate", angle)
-	// g.ctx.Call("drawImage", g.playerSprite, -width/2, -height/2)
-	// g.ctx.Call("restore")
-
 	g.ctx.Call("drawImage", g.ground, -10, 250)
 	g.ctx.Call("drawImage", g.ground, 750, 250)
 }
@@ -257,4 +194,48 @@ func (g *Game) Draw() {
 // 		log.Fatal(err)
 // 	}
 // 	return loadImage
+// }
+
+
+
+//func (g *Game) SetUpKeyboard() {
+
+// 	doc := js.Global().Get("document")
+
+// 	keyDown := js.FuncOf(func(this js.Value, args []js.Value) any {
+// 		event := args[0]
+// 		code := event.Get("code").String()
+// 		event.Call("preventDefault")
+// 		if event.Get("repeat").Bool() {
+// 			return nil
+// 		}
+// 		g.keys[code] = true
+// 		switch code {
+// 		// // 	mousePosX, _ = ebiten.CursorPosition()
+// 		// // 	dropRock := inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft)
+// 		case "KeyA":
+// 			if g.playerX > 40 && g.playerX < screenWidth-80 {
+// 				// 	if dropRock && mousePosX > 40 && mousePosX < screenWidth - 80 {
+// 				// log.Print("Dropping a rock !")
+// 				newRock := new(Rock)
+// 				newRock.Construct(Vector2{float64(g.playerX), 100}, Vector2{0, 0})
+// 				newRock.Update(water)
+// 				rocks = append(rocks, *newRock)
+// 			}
+// 		}
+
+// 		return nil
+// 	})
+
+// 	keyUp := js.FuncOf(func(this js.Value, args []js.Value) any {
+// 		event := args[0]
+// 		code := event.Get("code").String()
+// 		event.Call("preventDefault")
+// 		g.keys[code] = false
+
+// 		return nil
+// 	})
+
+// 	doc.Call("addEventListener", "keydown", keyDown)
+// 	doc.Call("addEventListener", "keyup", keyUp)
 // }
